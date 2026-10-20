@@ -36,6 +36,8 @@ never fails, blocks, or delays an agent turn.
 
    (Use `add dsh-telegram-notify` instead once it is published.)
 
+   If the DSH app you use runs the `desktop` profile, substitute `--profile desktop`.
+
 2. Enable the bundle by adding `"dsh-telegram-notify"` to `dsh.profile.bundles`
    in `~/.dsh/profiles/web/package.json`. The bundle patch inserts the
    `telegram-notify` row.
@@ -87,6 +89,11 @@ rotating the token does not need a restart. The default reference is
 Messages are plain text (no parse mode), so model output cannot break
 formatting or inject markup. Text is clipped to Telegram's 4096-character
 limit; long plans and answers are truncated with `…`.
+
+Every root session in the process is watched. If you also run a two-way
+Telegram bridge such as `dsh-im`, sessions handled by that bridge produce their
+own replies, and this plugin will additionally send turn notifications for
+them. Disable the bridge or set `notifyTurnComplete: false` if that is noisy.
 
 ## Tests
 
