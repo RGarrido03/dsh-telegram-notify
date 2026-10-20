@@ -402,9 +402,11 @@ type Style = Record<string, string | number>
           }
         },
         subscribe(handler: (ref: string) => void): () => void {
-          const on = ctx.remote?.$on
-          if (typeof on !== 'function') return () => {}
-          const off = on('credentials/reference-updated', (value) => {
+          // Call through the remote object: `$on` reads its own context, so a
+          // detached function loses `this`.
+          const remote = ctx.remote
+          if (typeof remote?.$on !== 'function') return () => {}
+          const off = remote.$on('credentials/reference-updated', (value) => {
             if (typeof value === 'string') handler(value)
           })
           return typeof off === 'function' ? (off as () => void) : () => {}
@@ -821,7 +823,7 @@ type Style = Record<string, string | number>
       )
     }
 
-    const inject = ['slots', 'locale', 'configForms', 'remote']
+    const inject = ['slots', 'locale', 'configForms', 'remote', 'remote.credentials']
 
     function apply(ctx: ClientContext): void {
       const t = ctx.locale.bind(NS)

@@ -35,7 +35,7 @@ test('client bundle can be evaluated twice without a global declaration clash', 
 
 function fakeContext() {
   const copies = new Map()
-  const state = { registration: undefined, localeCopies: copies }
+  const state = { registration: undefined, localeCopies: copies, remoteThis: undefined, remoteEvent: undefined, remoteHandler: undefined }
   const form = {
     getSnapshot: () => ({
       status: 'ready',
@@ -55,6 +55,19 @@ function fakeContext() {
     }),
     subscribe: () => () => {},
     mutate: async () => true,
+  }
+  const remote = {
+    $on(event, handler) {
+      state.remoteThis = this
+      state.remoteEvent = event
+      state.remoteHandler = handler
+      return () => {}
+    },
+    credentials: {
+      describe: async () => ({ ok: true, value: { TELEGRAM_BOT_TOKEN: { configured: true, writable: true } } }),
+      set: async () => ({ ok: true }),
+      unset: async () => ({ ok: true }),
+    },
   }
   const ctx = {
     effect: (run) => {
@@ -85,14 +98,7 @@ function fakeContext() {
         return form
       },
     },
-    remote: {
-      $on: () => () => {},
-      credentials: {
-        describe: async () => ({ ok: true, value: { TELEGRAM_BOT_TOKEN: { configured: true, writable: true } } }),
-        set: async () => ({ ok: true }),
-        unset: async () => ({ ok: true }),
-      },
-    },
+    remote,
   }
   return { ctx, state, form }
 }
@@ -103,7 +109,7 @@ test('client apply registers the Telegram settings section', () => {
     if (specifier === 'react') return React
     throw new Error(`unexpected client require: ${specifier}`)
   })
-  assert.deepEqual(exports.inject, ['slots', 'locale', 'configForms', 'remote'])
+  assert.deepEqual(exports.inject, ['slots', 'locale', 'configForms', 'remote', 'remote.credentials'])
   exports.apply(ctx)
 
   const registration = state.registration
@@ -114,6 +120,13 @@ test('client apply registers the Telegram settings section', () => {
   assert.equal(registration.options.locale, 'settings.telegram')
   assert.equal(registration.options.label(), 'Telegram')
   assert.ok(state.localeCopies.get('settings.telegram').en.title)
+
+  const props = registration.options.inject()
+  const off = props.credentials.subscribe(() => {})
+  assert.equal(state.remoteThis, ctx.remote, '$on must be called with the remote receiver')
+  assert.equal(state.remoteEvent, 'credentials/reference-updated')
+  assert.equal(typeof state.remoteHandler, 'function')
+  off()
 })
 
 test('the settings section renders the connection, events and delivery controls', () => {
