@@ -94,6 +94,8 @@ same fields remain editable in `~/.dsh/profiles/web/cordis.patch.yml`:
 | `notifyPlanReviews` | `true` | Plans waiting for approval. |
 | `notifyApprovals` | `true` | Pending tool approvals. |
 
+The Settings page is keyed to the loader row id `telegram-notify`; mounting the
+plugin under a different id makes the page report the namespace as unavailable.
 The editable page fields are schemastery `volatile` config, so saves apply to
 the running plugin without a restart. Messages are plain text (no parse mode),
 so model output cannot break formatting or inject markup; text is clipped to
