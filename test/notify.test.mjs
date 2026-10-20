@@ -5,10 +5,12 @@ import {
   Config,
   apply,
   clip,
+  formatApproval,
   formatCompleted,
   formatError,
   formatPlan,
   formatQuestions,
+  formatWarning,
   messageText,
   resolveSettings,
   sendTelegram,
@@ -182,6 +184,97 @@ test('exact-limit text is not truncated', () => {
   const text = 'a'.repeat(4096)
   assert.equal(snippet(text, 4096), text)
   assert.equal(clip(text, 100), `${'a'.repeat(99)}…`)
+})
+
+test('turn messages separate the user and response with blank lines', () => {
+  const text = formatCompleted(session('/Users/ruben/project'), {
+    title: 'Fix login',
+    user: 'Why is login broken?',
+    assistant: 'Found the expired token.',
+  })
+  assert.equal(
+    text,
+    [
+      '✅ Turn complete',
+      '📁 project — Fix login',
+      '',
+      '👤 Why is login broken?',
+      '',
+      '🤖 Found the expired token.',
+    ].join('\n'),
+  )
+})
+
+test('errors and warnings separate their detail blocks', () => {
+  assert.equal(
+    formatError(session('/Users/ruben/project'), { title: 'Fix', user: 'Run tests', assistant: '' }, {
+      message: 'boom',
+      code: 'X',
+    }),
+    [
+      '❌ Turn failed',
+      '📁 project — Fix',
+      '',
+      '👤 Run tests',
+      '',
+      '⚠️ boom (X)',
+    ].join('\n'),
+  )
+  assert.equal(
+    formatWarning(session('/Users/ruben/project'), { title: '', user: '', assistant: '' }, 'max-tokens'),
+    ['⚠️ Turn stopped', '📁 project', '', 'Reason: the output-token limit was reached'].join('\n'),
+  )
+})
+
+test('questions, plans and approvals use blank-line sections', () => {
+  assert.equal(
+    formatQuestions(session(), { title: '', user: '', assistant: '' }, [
+      { header: 'Deploy', question: 'Now?', detail: 'detail', options: [{ label: 'Yes' }] },
+    ]),
+    [
+      '❓ Waiting for your input',
+      '📁 dsh-plugins',
+      '',
+      '— Deploy',
+      'Now?',
+      'detail',
+      'Options:',
+      '• Yes',
+      '',
+      'Reply in the DSH UI to continue.',
+    ].join('\n'),
+  )
+  assert.equal(
+    formatPlan(session(), { title: 'Plan', user: 'Add notifications', assistant: '' }, '# Ship\n\nDo it'),
+    [
+      '📋 Plan ready for approval',
+      '📁 dsh-plugins — Plan',
+      '',
+      '👤 Add notifications',
+      '',
+      '📌 Ship',
+      'Do it',
+      '',
+      'Review it in the DSH UI to approve or keep planning.',
+    ].join('\n'),
+  )
+  assert.equal(
+    formatApproval(session(), { title: 'Approval', user: 'Deploy', assistant: '' }, {
+      toolName: 'bash',
+      reason: 'writes outside the workspace',
+    }),
+    [
+      '🔐 Approval needed',
+      '📁 dsh-plugins — Approval',
+      '',
+      '👤 Deploy',
+      '',
+      'Tool: bash',
+      'Reason: writes outside the workspace',
+      '',
+      'Approve or reject it in the DSH UI.',
+    ].join('\n'),
+  )
 })
 
 // ───────────────────────────── event wiring ─────────────────────────────

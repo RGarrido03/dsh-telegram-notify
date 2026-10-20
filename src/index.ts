@@ -215,9 +215,19 @@ export function clip(value: unknown, limit: number = DETAIL_SNIPPET): string {
 }
 
 function finalize(lines: readonly string[]): string {
-  const text = lines.filter((line) => line !== '').join('\n')
+  const text = lines
+    .join('\n')
+    .replace(/^\n+/, '')
+    .replace(/\n+$/, '')
+    .replace(/\n{3,}/g, '\n\n')
   if (text.length <= MAX_MESSAGE) return text
   return `${text.slice(0, MAX_MESSAGE - 1)}…`
+}
+
+/** Add a blank line before a non-empty block, keeping sections visually separate. */
+function pushBlock(lines: string[], block: string): void {
+  if (block === '') return
+  lines.push('', block)
 }
 
 function workspaceOf(session: Session | undefined): string {
@@ -248,13 +258,11 @@ function isRootSession(session: Session): boolean {
 
 /** Format a completed turn. */
 export function formatCompleted(session: Session, state: SessionState): string {
+  const lines = ['✅ Turn complete', scopeLine(session, state)]
+  pushBlock(lines, lastUserLine(state))
   const assistant = snippet(state.assistant, ASSISTANT_SNIPPET)
-  return finalize([
-    '✅ Turn complete',
-    scopeLine(session, state),
-    lastUserLine(state),
-    assistant === '' ? '' : `🤖 ${assistant}`,
-  ])
+  pushBlock(lines, assistant === '' ? '' : `🤖 ${assistant}`)
+  return finalize(lines)
 }
 
 /** Format a failed turn. */
@@ -262,12 +270,10 @@ export function formatError(session: Session, state: SessionState, error: LlmFai
   const message = snippet(error?.message ?? 'The turn failed.', REASON_SNIPPET)
   const code = typeof error?.code === 'string' && error.code !== '' ? ` (${error.code})` : ''
   const status = typeof error?.status === 'number' ? ` · HTTP ${error.status}` : ''
-  return finalize([
-    '❌ Turn failed',
-    scopeLine(session, state),
-    lastUserLine(state),
-    `⚠️ ${message}${code}${status}`,
-  ])
+  const lines = ['❌ Turn failed', scopeLine(session, state)]
+  pushBlock(lines, lastUserLine(state))
+  pushBlock(lines, `⚠️ ${message}${code}${status}`)
+  return finalize(lines)
 }
 
 /** Format a turn that stopped without an error (max tokens or blocked). */
@@ -278,18 +284,19 @@ export function formatWarning(session: Session, state: SessionState, kind: strin
       : kind === 'blocked'
         ? 'the turn was blocked'
         : `the turn ended (${kind})`
-  return finalize(['⚠️ Turn stopped', scopeLine(session, state), lastUserLine(state), `Reason: ${reason}`])
+  const lines = ['⚠️ Turn stopped', scopeLine(session, state)]
+  pushBlock(lines, lastUserLine(state))
+  pushBlock(lines, `Reason: ${reason}`)
+  return finalize(lines)
 }
 
 /** Format a cancelled turn. */
 export function formatAborted(session: Session, state: SessionState, reason: TurnEndReason): string {
   const cause = reason.kind === 'aborted' ? reason.reason.kind : undefined
-  return finalize([
-    '⏹ Turn cancelled',
-    scopeLine(session, state),
-    lastUserLine(state),
-    typeof cause === 'string' ? `Cause: ${cause}` : '',
-  ])
+  const lines = ['⏹ Turn cancelled', scopeLine(session, state)]
+  pushBlock(lines, lastUserLine(state))
+  if (typeof cause === 'string') pushBlock(lines, `Cause: ${cause}`)
+  return finalize(lines)
 }
 
 interface QuestionOptionLike {
@@ -317,14 +324,16 @@ function optionsBlock(question: QuestionLike): string[] {
 export function formatQuestions(session: Session, state: SessionState, questions: readonly QuestionLike[]): string {
   const lines = ['❓ Waiting for your input', scopeLine(session, state)]
   for (const question of questions.slice(0, 4)) {
+    const block: string[] = []
     const header = snippet(question?.header, 120)
-    if (header !== '') lines.push(`— ${header}`)
-    lines.push(snippet(question?.question, 500) || 'The agent asked a question.')
+    if (header !== '') block.push(`— ${header}`)
+    block.push(snippet(question?.question, 500) || 'The agent asked a question.')
     const detail = clip(question?.detail, DETAIL_SNIPPET)
-    if (detail !== '') lines.push(detail)
-    lines.push(...optionsBlock(question))
+    if (detail !== '') block.push(detail)
+    block.push(...optionsBlock(question))
+    pushBlock(lines, block.join('\n'))
   }
-  lines.push('Reply in the DSH UI to continue.')
+  pushBlock(lines, 'Reply in the DSH UI to continue.')
   return finalize(lines)
 }
 
@@ -343,14 +352,11 @@ function planParts(plan: string | undefined): { heading: string; body: string } 
 /** Format a plan waiting for approval. */
 export function formatPlan(session: Session, state: SessionState, plan: string | undefined): string {
   const { heading, body } = planParts(plan)
-  return finalize([
-    '📋 Plan ready for approval',
-    scopeLine(session, state),
-    lastUserLine(state),
-    heading === '' ? '' : `📌 ${heading}`,
-    body,
-    'Review it in the DSH UI to approve or keep planning.',
-  ])
+  const lines = ['📋 Plan ready for approval', scopeLine(session, state)]
+  pushBlock(lines, lastUserLine(state))
+  pushBlock(lines, [heading === '' ? '' : `📌 ${heading}`, body].filter((line) => line !== '').join('\n'))
+  pushBlock(lines, 'Review it in the DSH UI to approve or keep planning.')
+  return finalize(lines)
 }
 
 /** Format a pending tool approval. */
@@ -361,14 +367,16 @@ export function formatApproval(
 ): string {
   const tool = snippet(request.toolName, 120)
   const reason = snippet(request.reason, REASON_SNIPPET)
-  return finalize([
-    '🔐 Approval needed',
-    scopeLine(session, state),
-    lastUserLine(state),
-    tool === '' ? '' : `Tool: ${tool}`,
-    reason === '' ? '' : `Reason: ${reason}`,
-    'Approve or reject it in the DSH UI.',
-  ])
+  const lines = ['🔐 Approval needed', scopeLine(session, state)]
+  pushBlock(lines, lastUserLine(state))
+  pushBlock(
+    lines,
+    [tool === '' ? '' : `Tool: ${tool}`, reason === '' ? '' : `Reason: ${reason}`]
+      .filter((line) => line !== '')
+      .join('\n'),
+  )
+  pushBlock(lines, 'Approve or reject it in the DSH UI.')
+  return finalize(lines)
 }
 
 /** Find the reviewed plan carried by a plan-review question, including its detail. */
