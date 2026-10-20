@@ -119,9 +119,10 @@ interface Draft {
 
 type Style = Record<string, string | number>
 
-const loader = (window as unknown as { __ModuleLoader__: ClientModuleLoader }).__ModuleLoader__
-
-loader.load({
+// Client bundles are classic scripts sharing one global lexical scope.
+// Keep every top-level declaration out of it: a bundle-local `loader` binding
+// collides with another plugin's (or this bundle's own HMR re-evaluation).
+;(window as unknown as { __ModuleLoader__: ClientModuleLoader }).__ModuleLoader__.load({
   id: 'dsh-telegram-notify',
   factory: (require: ClientRequire) => {
     const React = require('react') as ReactLike

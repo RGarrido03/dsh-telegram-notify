@@ -27,6 +27,12 @@ test('client bundle is a classic module-loader script', () => {
   assert.equal(typeof definition.factory, 'function')
 })
 
+test('client bundle can be evaluated twice without a global declaration clash', () => {
+  // The browser executes client bundles as classic scripts in one shared global
+  // lexical scope; an HMR reload evaluates the same bundle again.
+  assert.doesNotThrow(() => vm.runInThisContext(clientSource, { filename: 'lib/client.js' }))
+})
+
 function fakeContext() {
   const copies = new Map()
   const state = { registration: undefined, localeCopies: copies }
