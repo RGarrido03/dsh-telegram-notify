@@ -358,14 +358,15 @@ loader.load({
         async describe(ref: string): Promise<CredentialState> {
           const remote = current()
           if (ref === '' || typeof remote?.describe !== 'function') {
-            return { configured: false, writable: false, error: 'no credential reference' }
+            return { configured: false, writable: true, unavailable: true, error: 'no credential remote' }
           }
           try {
             const response = await remote.describe([ref])
             if (response?.ok !== true) {
               return {
                 configured: false,
-                writable: false,
+                writable: true,
+                unavailable: true,
                 error: response?.error?.message ?? 'credential description failed',
               }
             }
@@ -376,7 +377,7 @@ loader.load({
               unavailable: state?.unavailable === true,
             }
           } catch (error) {
-            return { configured: false, writable: false, error: messageOf(error) }
+            return { configured: false, writable: true, unavailable: true, error: messageOf(error) }
           }
         },
         async set(ref: string, value: string): Promise<{ ok: boolean; error?: string }> {
