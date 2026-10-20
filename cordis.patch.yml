@@ -1,11 +1,12 @@
 # dsh-telegram-notify bundle layer.
 # One plugin row: subscribes to session events and pushes notifications to a
-# Telegram chat. Configure chatId (and tokenRef if your bot token is stored
-# under a different credential reference) in the profile's cordis.patch.yml.
+# Telegram chat. The browser half adds a Settings → Telegram page that writes
+# this row's config and stores the bot token in the credential store.
 - insert:
     - id: telegram-notify
       name: "dsh-telegram-notify"
       config:
-        # Empty keeps the plugin loaded but disabled, so a fresh install cannot
-        # fail the profile before the chat id exists.
+        # Empty keeps the plugin loaded but idle, so a fresh install cannot
+        # fail the profile before the chat id exists. Configure it in the
+        # Settings page (or override this row in cordis.patch.yml).
         chatId: ""

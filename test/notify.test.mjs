@@ -13,7 +13,7 @@ import {
   resolveSettings,
   sendTelegram,
   snippet,
-} from '../index.js'
+} from '../lib/index.js'
 
 // ───────────────────────────── harness ─────────────────────────────
 
@@ -48,6 +48,7 @@ function createContext({ token = 'test-token', resolve } = {}) {
   const handlers = new Map()
   const logs = []
   const ctx = {
+    fiber: { id: 'test-fiber' },
     logger: () => ({
       info: (...args) => logs.push(['info', args.join(' ')]),
       warn: (...args) => logs.push(['warn', args.join(' ')]),
@@ -57,6 +58,9 @@ function createContext({ token = 'test-token', resolve } = {}) {
     on: (eventName, callback) => {
       handlers.set(eventName, callback)
     },
+    // The Host settings hook is optional; this harness exercises the event
+    // pipeline, and the dedicated settings test supplies its own inject.
+    inject: () => {},
     credentials: {
       resolve: resolve ?? (async () => ({ value: token, source: 'test' })),
     },
@@ -287,11 +291,57 @@ test('subagent sessions are ignored', async () => {
   }
 })
 
-test('missing chatId registers nothing and warns once', async () => {
-  const { ctx, handlers, logs } = createContext()
-  apply(ctx, { chatId: '', apiBase: 'https://api.telegram.org', token: 'test-token' })
-  assert.equal(handlers.size, 0)
-  assert.ok(logs.some(([level, message]) => level === 'warn' && /chatId/.test(message)))
+test('volatile config edits apply without a remount', async () => {
+  const server = await startStub()
+  try {
+    const { ctx, handlers } = createContext()
+    const config = Config({
+      chatId: '111',
+      apiBase: server.base,
+      token: 'test-token',
+      notifyTurnComplete: true,
+    })
+    apply(ctx, config)
+
+    emit(handlers, session(), 'turn/end', { turn: 1, reason: { kind: 'completed' } })
+    await waitFor(() => server.requests.length === 1)
+    assert.equal(server.requests[0].body.chat_id, '111')
+
+    const write = Symbol.for('cosmokit.volatile.write')
+    config.chatId[write]('222')
+    config.notifyTurnComplete[write](false)
+    emit(handlers, session(), 'turn/end', { turn: 2, reason: { kind: 'completed' } })
+    await settle(200)
+    assert.equal(server.requests.length, 1, 'the disabled toggle should suppress the message')
+
+    config.notifyTurnComplete[write](true)
+    emit(handlers, session(), 'turn/end', { turn: 3, reason: { kind: 'completed' } })
+    await waitFor(() => server.requests.length === 2)
+    assert.equal(server.requests[1].body.chat_id, '222')
+  } finally {
+    await server.close()
+  }
+})
+
+test('missing chatId stays quiet and can be enabled live', async () => {
+  const server = await startStub()
+  try {
+    const { ctx, handlers, logs } = createContext()
+    const config = { chatId: '', apiBase: server.base, token: 'test-token' }
+    apply(ctx, config)
+    assert.equal(typeof handlers.get('session/event'), 'function')
+    assert.ok(logs.some(([level, message]) => level === 'warn' && /chatId/.test(message)))
+    emit(handlers, session(), 'turn/end', { turn: 1, reason: { kind: 'completed' } })
+    await settle(200)
+    assert.equal(server.requests.length, 0, 'no message while chatId is empty')
+
+    config.chatId = '99'
+    emit(handlers, session(), 'turn/end', { turn: 2, reason: { kind: 'completed' } })
+    await waitFor(() => server.requests.length === 1)
+    assert.equal(server.requests[0].body.chat_id, '99')
+  } finally {
+    await server.close()
+  }
 })
 
 test('event toggles disable individual notifications', async () => {
@@ -524,8 +574,34 @@ test('a missing credential is logged without leaking the token', async () => {
   }
 })
 
+test('the custom settings page disables the Host auto-generated form', () => {
+  const { ctx } = createContext()
+  const calls = []
+  const settings = {
+    configure: (presentation, owner) => {
+      calls.push({ presentation, owner })
+      return () => {}
+    },
+  }
+  ctx.inject = (deps, callback) => {
+    assert.deepEqual(deps, ['settings'])
+    callback({
+      settings,
+      fiber: { id: 'settings-child' },
+      effect: (run) => {
+        const dispose = run()
+        if (typeof dispose === 'function') dispose()
+      },
+    })
+  }
+  apply(ctx, { chatId: '', apiBase: 'https://api.telegram.org', token: 'test-token' })
+  assert.equal(calls.length, 1)
+  assert.deepEqual(calls[0].presentation, { auto: false })
+  assert.equal(calls[0].owner, ctx.fiber)
+})
+
 test('the Config schema applies the documented defaults', () => {
-  const parsed = Config({ chatId: '42' })
+  const parsed = resolveSettings(Config({ chatId: '42' }))
   assert.equal(parsed.chatId, '42')
   assert.equal(parsed.tokenRef, 'TELEGRAM_BOT_TOKEN')
   assert.equal(parsed.apiBase, 'https://api.telegram.org')

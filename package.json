@@ -1,24 +1,36 @@
 {
   "name": "dsh-telegram-notify",
-  "version": "0.1.0",
-  "description": "Push DSH turn, error, question, plan-review, and approval events to a Telegram chat. One-way notifications, no bot chat.",
+  "version": "0.2.0",
+  "description": "Push DSH turn, error, question, plan-review and approval events to a Telegram chat, with a Settings page for the bot token, chat id and event toggles.",
+  "icon": "./icon.svg",
   "type": "module",
-  "main": "./index.js",
+  "main": "./lib/index.js",
   "exports": {
     ".": {
-      "default": "./index.js"
+      "default": "./lib/index.js"
     },
+    "./client": {
+      "default": "./lib/client.js"
+    },
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
-    "index.js",
+    "lib",
+    "locale",
     "cordis.patch.yml",
+    "icon.svg",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "pnpm build",
     "test": "node --test test/*.test.mjs",
-    "check": "node --check index.js && node --test test/*.test.mjs"
+    "check": "pnpm typecheck && pnpm test",
+    "prepare": "tsc -p tsconfig.json",
+    "prepack": "tsc -p tsconfig.json"
   },
   "engines": {
     "node": ">=22"
@@ -26,14 +38,35 @@
   "keywords": [
     "deepseek-harness",
     "dsh",
-    "plugin",
+    "dsh-plugin",
     "telegram",
-    "notifications"
+    "notifications",
+    "settings"
   ],
   "license": "MIT",
+  "author": "Rúben Garrido",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RGarrido03/dsh-telegram-notify.git"
+  },
+  "homepage": "https://github.com/RGarrido03/dsh-telegram-notify#readme",
+  "bugs": {
+    "url": "https://github.com/RGarrido03/dsh-telegram-notify/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes"
+      ],
+      "platform": "web"
     },
     "compatibility": {
       "dshReleases": {
@@ -46,6 +79,17 @@
     "@deepseek-ai/schemastery": "~3.18.4 || ~3.18.5"
   },
   "devDependencies": {
-    "@deepseek-ai/schemastery": "^3.18.5"
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-session": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-session-title": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-user-approval": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.5",
+    "@types/node": "^26.6.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^7.0.2"
   }
 }

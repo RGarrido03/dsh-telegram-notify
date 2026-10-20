@@ -1,0 +1,39 @@
+name: publish
+
+# Publishing is a deliberate act: cut a GitHub release, or run this workflow by
+# hand. The version comes from package.json, so bump it in the commit the
+# release points at — npm refuses to publish over an existing version.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Trusted publishing: the npm CLI exchanges this OIDC token for a short-lived
+  # publish credential, so no long-lived npm token is stored anywhere. The same
+  # permission carries the provenance attestation.
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
+      # Trusted publishing needs npm >= 11.5.1, newer than the npm bundled with
+      # Node 22.
+      - run: npm install --global npm@latest
+      - run: npm --version
+      # lib/ is git-ignored; the tarball copy comes from the prepack hook.
+      - run: npm publish --provenance --access public

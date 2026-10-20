@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Telegram notifications",
+    "description": "Send turn, error, question, plan-review and approval events to a Telegram chat. Configure the bot token, chat id and event toggles in Settings → Telegram."
+  }
+}
