@@ -35,7 +35,8 @@ never fails, blocks, or delays an agent turn.
 dsh plugin --profile web add dsh-telegram-notify
 ```
 
-If your app runs the `desktop` profile, use `--profile desktop`.
+If your app runs the `desktop` profile, use `--profile desktop`. From a local
+checkout (before the npm release), use `dsh plugin --profile web add link:$PWD`.
 
 Enable the bundle by adding `"dsh-telegram-notify"` to `dsh.profile.bundles` in
 `~/.dsh/profiles/web/package.json` (or enable it from the DSH Plugin Manager).
@@ -126,9 +127,18 @@ compiled as a classic module-loader script), `test/` (Host event pipeline,
 client registration, and server-rendered settings page). No test touches
 Telegram; the transport tests use a local HTTP stub.
 
-Publishing uses npm trusted publishing from `.github/workflows/publish.yml`:
-cut a GitHub release (or run the workflow manually) after configuring the
-repository as a trusted publisher on npm.
+The first npm publish must authenticate with a token (trusted publishing can
+only be configured after the package exists):
+
+```bash
+npm login
+npm publish --access public
+```
+
+Then add this repository as a trusted publisher for `dsh-telegram-notify` on
+npm (package settings → Trusted publishing → GitHub Actions, workflow
+`publish.yml`). Subsequent releases publish through OIDC from
+`.github/workflows/publish.yml` when a GitHub release is published.
 
 ## License
 
